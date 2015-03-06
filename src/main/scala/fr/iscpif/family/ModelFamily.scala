@@ -18,6 +18,7 @@
 package fr.iscpif.family
 
 import scala.util.Try
+import collection.JavaConversions
 
 trait ModelFamily { family ⇒
 
@@ -65,6 +66,7 @@ trait ModelFamily { family ⇒
         |${imports.map("import " + _).mkString("\n")}
         |
         |($modelId: Int, $attributesPrototypes, rng: util.Random) => {
+        |  implicit lazy val _rng = rng
         |
         |  case class Attributes($attributesPrototypes)
         |
@@ -79,34 +81,17 @@ trait ModelFamily { family ⇒
 
   def compile(code: String): Try[Any]
 
-  @transient lazy val compiled: Try[(Int, Seq[Double], util.Random) => Any] = {
+  @transient lazy val compiled: Try[(Int, Seq[Double], util.Random) => Map[String, Any]] = {
     compile(code) map {
       c =>
         val method = c.getClass.getMethod("apply", (classOf[Int] :: attributes.map(c ⇒ classOf[Double]).toList ::: List(classOf[util.Random])): _*)
-        (id: Int, attributes: Seq[Double], rng: util.Random) => method.invoke(c, (id.asInstanceOf[AnyRef] :: attributes.map(_.asInstanceOf[AnyRef]).toList ::: List(rng)): _*)
+        (id: Int, attributes: Seq[Double], rng: util.Random) =>
+          JavaConversions.mapAsScalaMap(
+            method.invoke(c, (id.asInstanceOf[AnyRef] :: attributes.map(_.asInstanceOf[AnyRef]).toList ::: List(rng)): _*).asInstanceOf[java.util.Map[String, Any]]
+          ).toMap
     }
   }
 
-  def run(model: Int, attribute: Double*)(implicit rng: util.Random) = compiled.map(_(model, attribute, rng))
-
-  /*@transient lazy val compilation = {
-    val compilation =
-      new ScalaCompilation {
-
-
-
-
-        override def wrapOutput = false
-
-        override def imports: Seq[String] = family.imports
-        override def source: String = code
-        override def outputs: DataSet = objectives
-        override def libraries: Seq[File] = family.libraries
-        override def usedClasses: Seq[Class[_]] = family.usedClasses
-      }
-    compilation.compiled(Seq(modelIdPrototype) ++ attributes.map(_.prototype)).get
-  }
-
-  def apply[T](id: Int, attributes: Double*): T*/
+  def run(model: Int, attribute: Double*)(implicit rng: util.Random): Try[Map[String, Any]] = compiled.map(_(model, attribute, rng))
 
 }
