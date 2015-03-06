@@ -22,7 +22,7 @@ import scala.util.Try
 
 trait ScriptEngineCompilation <: ModelFamily {
   def engine = {
-    val eng = new ScriptEngineManager().getEngineByName("scala").asInstanceOf[IMain]
+    val eng = new ScriptEngineManager(this.getClass.getClassLoader).getEngineByName("scala").asInstanceOf[IMain]
     val settings = eng.settings
     class Plop
     settings.embeddedDefaults[Plop]
