@@ -16,7 +16,7 @@
  */
 package fr.iscpif.family
 
-import scala.util.Try
+import scala.util.{ Random, Try }
 
 trait Model
 trait A
@@ -39,6 +39,8 @@ object Test extends App {
     def outputs = Seq("o1")
     def combination: Combination[Class[_]] = AnyOf(classOf[A], classOf[B], classOf[C])
   }
+
+  implicit val rng = new Random(42)
 
   println(family.code)
   println(family.run(2, 1.6, 2.8, 9.0))

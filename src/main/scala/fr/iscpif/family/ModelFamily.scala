@@ -64,7 +64,7 @@ trait ModelFamily { family ⇒
     s"""
         |${imports.map("import " + _).mkString("\n")}
         |
-        |($modelId: Int, $attributesPrototypes) => {
+        |($modelId: Int, $attributesPrototypes, rng: util.Random) => {
         |
         |  case class Attributes($attributesPrototypes)
         |
@@ -79,15 +79,15 @@ trait ModelFamily { family ⇒
 
   def compile(code: String): Try[Any]
 
-  @transient lazy val compiled: Try[(Int, Seq[Double]) => Any] = {
+  @transient lazy val compiled: Try[(Int, Seq[Double], util.Random) => Any] = {
     compile(code) map {
       c =>
-        val method = c.getClass.getMethod("apply", (classOf[Int] :: attributes.map(c ⇒ classOf[Double]).toList): _*)
-        (id: Int, attributes: Seq[Double]) => method.invoke(c, (id.asInstanceOf[AnyRef] :: attributes.map(_.asInstanceOf[AnyRef]).toList): _*)
+        val method = c.getClass.getMethod("apply", (classOf[Int] :: attributes.map(c ⇒ classOf[Double]).toList ::: List(classOf[util.Random])): _*)
+        (id: Int, attributes: Seq[Double], rng: util.Random) => method.invoke(c, (id.asInstanceOf[AnyRef] :: attributes.map(_.asInstanceOf[AnyRef]).toList ::: List(rng)): _*)
     }
   }
 
-  def run(model: Int, attribute: Double*) = compiled.map(_(model, attribute))
+  def run(model: Int, attribute: Double*)(implicit rng: util.Random) = compiled.map(_(model, attribute, rng))
 
   /*@transient lazy val compilation = {
     val compilation =
