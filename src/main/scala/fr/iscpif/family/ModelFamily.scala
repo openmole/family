@@ -22,6 +22,7 @@ import collection.JavaConversions
 
 trait ModelFamily { family ⇒
 
+  def attributeNameSpace = "_model_family_attributes_"
   def combination: Combination[Class[_]]
   def imports: Seq[String]
   def source(traits: String, attributes: String): String
@@ -36,7 +37,7 @@ trait ModelFamily { family ⇒
 
   def attributesStrings =
     attributes.map {
-      name ⇒ s"def ${name}: Double = attributes.${name}"
+      name ⇒ s"def ${name}: Double = $attributeNameSpace.attributes.${name}"
     }
 
   def modelCode =
@@ -68,9 +69,10 @@ trait ModelFamily { family ⇒
         |($modelId: Int, $attributesPrototypes, rng: util.Random) => {
         |  implicit lazy val _rng = rng
         |
-        |  case class Attributes($attributesPrototypes)
-        |
-        |  val attributes = Attributes(${attributes.mkString(", ")})
+        |  object $attributeNameSpace {
+        |    case class Attributes($attributesPrototypes)
+        |    val attributes = Attributes(${attributes.mkString(", ")})
+        |  }
         |
         |  ${modelId} match {
         |    $matchCode
