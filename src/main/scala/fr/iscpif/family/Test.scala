@@ -29,14 +29,16 @@ object Test extends App {
     def imports: Seq[String] = Seq("fr.iscpif.family._")
     def source(traits: String, attributes: String): String =
       s"""
-         |val model = new Model $traits {
+         |val model = new Model with $traits {
          |  $attributes
          |}
          |val o1 = 1
        """.stripMargin
 
-    def attributes: Seq[String] = Seq("a", "b", "c")
-    def outputs = Seq("o1")
+    def attributes =
+      Seq(TypedValue[Double]("a"), TypedValue[Double]("b"), TypedValue[Double]("c"))
+    def inputs = Seq.empty
+    def outputs = Seq(TypedValue[Double]("o1"))
     def combination: Combination[Class[_]] = AnyOf(classOf[A], classOf[B], classOf[C])
   }
 
