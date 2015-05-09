@@ -20,12 +20,14 @@ import javax.script.ScriptEngineManager
 import scala.tools.nsc.interpreter.IMain
 import scala.util.Try
 
+class Plop
+
 trait ScriptEngineCompilation <: ModelFamily {
   def engine = {
     val eng = new ScriptEngineManager(this.getClass.getClassLoader).getEngineByName("scala").asInstanceOf[IMain]
     val settings = eng.settings
-    class Plop
     settings.embeddedDefaults[Plop]
+    settings.usejavacp.value = true
     eng
   }
 
