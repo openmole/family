@@ -2,7 +2,7 @@ organization := "fr.iscpif"
 
 name := "family"
 
-scalaVersion := "2.11.6"
+scalaVersion := "2.11.7"
 
 resolvers ++= Seq(
   "Scala Tools Snapshots" at "http://scala-tools.org/repo-snapshots/"
