@@ -20,23 +20,40 @@ package fr.iscpif.family
 import scala.util.Try
 import collection.JavaConversions
 
+object TypedValue {
+  def apply[T](name: String)(implicit `type`: Manifest[T]): TypedValue = new TypedValue(name, `type`)
+}
+
+class TypedValue(val name: String, val `type`: Manifest[_]) {
+  override def toString = s"$name: ${`type`}"
+}
+
 trait ModelFamily { family ⇒
 
+  def modelFamilyNameSpace = "_model_family_"
   def combination: Combination[Class[_]]
   def imports: Seq[String]
   def source(traits: String, attributes: String): String
-  def attributes: Seq[String]
-  def outputs: Seq[String]
-  def modelId = "modelId"
+
+  def inputs: Seq[TypedValue]
+  def attributes: Seq[TypedValue]
+  def outputs: Seq[TypedValue]
+
+  def modelId = "_modelId"
+  def emptyTrait = "EmptyTrait"
 
   def traits: Seq[Class[_]] = combination.components
   def traitsCombinations = combination.combinations
 
-  def traitsString = traitsCombinations.map { ts ⇒ ts.map(t ⇒ s"with ${t.getName}").mkString(" ") }
+  def traitsString =
+    traitsCombinations.map {
+      case Seq() => s"$modelFamilyNameSpace.$emptyTrait"
+      case ts => ts.map(t ⇒ s"${t.getName}").mkString(" with ")
+    }
 
   def attributesStrings =
     attributes.map {
-      name ⇒ s"def ${name}: Double = attributes.${name}"
+      a ⇒ s"lazy val ${a} = $modelFamilyNameSpace.attributes.${a.name}"
     }
 
   def modelCode =
@@ -47,7 +64,7 @@ trait ModelFamily { family ⇒
   def mapOutputCode =
     s"""
        |import scala.collection.JavaConversions.mapAsJavaMap
-       |mapAsJavaMap(Map[String, Any](${outputs.map(o => s""""$o" -> $o""").mkString(", ")}))
+       |mapAsJavaMap(Map[String, Any](${outputs.map(o => s""""${o.name}" -> ($o)""").mkString(", ")}))
      """.stripMargin
 
   def matchCode =
@@ -59,18 +76,21 @@ trait ModelFamily { family ⇒
            |    $mapOutputCode""".stripMargin
     }.mkString("\n")
 
-  def attributesPrototypes = attributes.map(_ + ": Double").mkString(", ")
+  def allInputsString = allInputs.mkString(", ")
+  def allInputs = attributes ++ inputs
 
   def code =
     s"""
         |${imports.map("import " + _).mkString("\n")}
         |
-        |($modelId: Int, $attributesPrototypes, rng: util.Random) => {
+        |($modelId: Int, $allInputsString, rng: util.Random) => {
         |  implicit lazy val _rng = rng
         |
-        |  case class Attributes($attributesPrototypes)
-        |
-        |  val attributes = Attributes(${attributes.mkString(", ")})
+        |  object $modelFamilyNameSpace {
+        |    trait $emptyTrait
+        |    case class Attributes($allInputsString)
+        |    val attributes = Attributes(${allInputs.map(_.name).mkString(", ")})
+        |  }
         |
         |  ${modelId} match {
         |    $matchCode
@@ -81,17 +101,18 @@ trait ModelFamily { family ⇒
 
   def compile(code: String): Try[Any]
 
-  @transient lazy val compiled: Try[(Int, Seq[Double], util.Random) => Map[String, Any]] = {
+  @transient lazy val compiled: Try[(Int, Seq[Any], util.Random) => Map[String, Any]] = {
     compile(code) map {
       c =>
-        val method = c.getClass.getMethod("apply", (classOf[Int] :: attributes.map(c ⇒ classOf[Double]).toList ::: List(classOf[util.Random])): _*)
-        (id: Int, attributes: Seq[Double], rng: util.Random) =>
+        val method = c.getClass.getMethod("apply", (classOf[Int] :: allInputs.map(_.`type`.runtimeClass).toList ::: List(classOf[util.Random])): _*)
+        (id: Int, inputs: Seq[Any], rng: util.Random) =>
           JavaConversions.mapAsScalaMap(
-            method.invoke(c, (id.asInstanceOf[AnyRef] :: attributes.map(_.asInstanceOf[AnyRef]).toList ::: List(rng)): _*).asInstanceOf[java.util.Map[String, Any]]
+            method.invoke(c, (id.asInstanceOf[AnyRef] :: inputs.map(_.asInstanceOf[AnyRef]).toList ::: List(rng)): _*).asInstanceOf[java.util.Map[String, Any]]
           ).toMap
     }
   }
 
-  def run(model: Int, attribute: Double*)(implicit rng: util.Random): Try[Map[String, Any]] = compiled.map(_(model, attribute, rng))
+  def run(model: Int, parameters: Any*)(implicit rng: util.Random): Try[Map[String, Any]] =
+    compiled.map(_(model, parameters, rng))
 
 }
